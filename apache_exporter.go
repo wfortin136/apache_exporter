@@ -26,6 +26,7 @@ var (
 	scrapeURI        = flag.String("scrape_uri", "http://localhost/server-status/?auto", "URI to apache stub status page.")
 	insecure         = flag.Bool("insecure", false, "Ignore server certificate if using https.")
         pushURI          = flag.String("pushgateway_uri", "pushgateway:9091", "Prometheus URI webscraper page")
+        hostname         = flag.String("hostname", "apache_stats", "Label for apache stats when dumped into Prometheus")
 )
 
 type Exporter struct {
@@ -283,7 +284,7 @@ func main() {
 	exporter := NewExporter(*scrapeURI)
 	prometheus.MustRegister(exporter)
 	for{
-		if err := push.AddCollectors("apache_stats", nil,*pushURI, exporter,);
+		if err := push.AddCollectors(*hostname, nil,*pushURI, exporter,);
 		err != nil {
 		fmt.Println("Could not push metrics to Pushgateway:", err)
 	  }
