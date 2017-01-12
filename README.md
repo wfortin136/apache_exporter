@@ -13,10 +13,10 @@ Help on flags:
     	Only log messages with the given severity or above. Valid levels: [debug, info, warn, error, fatal, panic]. (default info)
   -scrape_uri string
     	URI to apache stub status page (default "http://localhost/server-status/?auto")
-  -telemetry.address string
-    	Address on which to expose metrics. (default ":9117")
-  -telemetry.endpoint string
-    	Path under which to expose metrics. (default "/metrics")
+  -node string
+  -pod string
+  -app string
+  -branch string
 ```
 
 Tested on Apache 2.2 and Apache 2.4.
