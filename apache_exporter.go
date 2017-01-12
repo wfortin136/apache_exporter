@@ -26,7 +26,10 @@ var (
 	scrapeURI        = flag.String("scrape_uri", "http://localhost/server-status/?auto", "URI to apache stub status page.")
 	insecure         = flag.Bool("insecure", false, "Ignore server certificate if using https.")
         pushURI          = flag.String("pushgateway_uri", "pushgateway:9091", "Prometheus URI webscraper page")
-        hostname         = flag.String("hostname", "apache_stats", "Label for apache stats when dumped into Prometheus")
+        node             = flag.String("node", "", "Kubernetes node name label when dumped into Prometheus")
+        pod              = flag.String("pod", "", "Kubernetes pod name label when dumped into Prometheus")
+        app              = flag.String("app", "", "App name label when dumped into Prometheus")
+        branch           = flag.String("branch", "", "Branch name label when dumped into Prometheus")
 )
 
 type Exporter struct {
@@ -281,10 +284,16 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 func main() {
 	flag.Parse()
 
+        groupingMap := map[string]string{
+            "instance": *node,
+            "pod": *pod,
+            "branch": *branch,
+        }
+
 	exporter := NewExporter(*scrapeURI)
 	prometheus.MustRegister(exporter)
 	for{
-		if err := push.AddCollectors(*hostname, nil,*pushURI, exporter,);
+		if err := push.AddCollectors(*app, groupingMap, *pushURI, exporter,);
 		err != nil {
 		fmt.Println("Could not push metrics to Pushgateway:", err)
 	  }
