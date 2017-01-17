@@ -156,7 +156,7 @@ func (e *Exporter) updateScoreboard(scoreboard string) {
 			e.scoreboard.WithLabelValues("open_slot").Inc()
 		}
 	}
-        e.scoreboard.WithLabelValues("total_processes").Add(150)
+        e.scoreboard.WithLabelValues("total_processes").Add(float64(len(scoreboard)))
 }
 
 func (e *Exporter) collect(ch chan<- prometheus.Metric) error {
