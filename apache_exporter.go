@@ -9,10 +9,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-        "time"
+        //"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/push"
+	//"github.com/prometheus/client_golang/prometheus/push"
+        "github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/log"
 )
 
@@ -21,13 +22,13 @@ const (
 )
 
 var (
-	//listeningAddress = flag.String("telemetry.address", ":9117", "Address on which to expose metrics.")
-	//metricsEndpoint  = flag.String("telemetry.endpoint", "/metrics", "Path under which to expose metrics.")
+	listeningAddress = flag.String("telemetry.address", ":9117", "Address on which to expose metrics.")
+	metricsEndpoint  = flag.String("telemetry.endpoint", "/metrics", "Path under which to expose metrics.")
 	scrapeURI        = flag.String("scrape_uri", "http://localhost/server-status/?auto", "URI to apache stub status page.")
 	insecure         = flag.Bool("insecure", false, "Ignore server certificate if using https.")
-        pushURI          = flag.String("pushgateway_uri", "pushgateway:9091", "Prometheus URI webscraper page")
-        node             = flag.String("node", "", "Kubernetes node name label when dumped into Prometheus")
-        pod              = flag.String("pod", "", "Kubernetes pod name label when dumped into Prometheus")
+        //pushURI          = flag.String("pushgateway_uri", "pushgateway:9091", "Prometheus URI webscraper page")
+        //node             = flag.String("node", "", "Kubernetes node name label when dumped into Prometheus")
+        //pod              = flag.String("pod", "", "Kubernetes pod name label when dumped into Prometheus")
         app              = flag.String("app", "", "App name label when dumped into Prometheus")
         branch           = flag.String("branch", "", "Branch name label when dumped into Prometheus")
 )
@@ -36,6 +37,8 @@ type Exporter struct {
 	URI    string
 	mutex  sync.Mutex
 	client *http.Client
+        APP    string
+        BRANCH string
 
 	up             *prometheus.Desc
 	scrapeFailures prometheus.Counter
@@ -47,14 +50,16 @@ type Exporter struct {
 	connections    *prometheus.GaugeVec
 }
 
-func NewExporter(uri string) *Exporter {
+func NewExporter(uri string, app string, branch string) *Exporter {
 	return &Exporter{
-		URI: uri,
+		URI:    uri,
+                APP:    app,
+                BRANCH: branch,
 		up: prometheus.NewDesc(
                         prometheus.BuildFQName(namespace, "", "up"),
                         "Could the apache server be reached",
-                        nil,
-			nil),
+			nil,
+                        map[string]string{"app": app, "branch": branch}),
                 scrapeFailures: prometheus.NewCounter(prometheus.CounterOpts{
                         Namespace: namespace,
                         Name:      "exporter_scrape_failures_total",
@@ -63,18 +68,18 @@ func NewExporter(uri string) *Exporter {
                 accessesTotal: prometheus.NewDesc(
                         prometheus.BuildFQName(namespace, "", "accesses_total"),
                         "Current total apache accesses",
-                        nil,
-                        nil),
+			nil,
+                        map[string]string{"app": app, "branch": branch}),
                 kBytesTotal: prometheus.NewDesc(
                         prometheus.BuildFQName(namespace, "", "sent_kilobytes_total"),
                         "Current total kbytes sent",
-                        nil,
-                        nil),
+			nil,
+                        map[string]string{"app": app, "branch": branch}),
                 uptime: prometheus.NewDesc(
                         prometheus.BuildFQName(namespace, "", "uptime_seconds_total"),
                         "Current uptime in seconds",
-                        nil,
-                        nil),
+			nil,
+                        map[string]string{"app": app, "branch": branch}),
 		workers: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "workers",
@@ -284,22 +289,16 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 func main() {
 	flag.Parse()
 
-        groupingMap := map[string]string{
-            "instance": *node,
-            "pod": *pod,
-            "branch": *branch,
-        }
-
-	exporter := NewExporter(*scrapeURI)
+	exporter := NewExporter(*scrapeURI, *app, *branch)
 	prometheus.MustRegister(exporter)
-	for{
-		if err := push.AddCollectors(*app, groupingMap, *pushURI, exporter,);
-		err != nil {
-		fmt.Println("Could not push metrics to Pushgateway:", err)
-	  }
-	  time.Sleep(5*time.Second)
-	}
-	//log.Infof("Starting Server: %s", *listeningAddress)
-	//http.Handle(*metricsEndpoint, prometheus.Handler())
-	//log.Fatal(http.ListenAndServe(*listeningAddress, nil))
+	//for{
+	//	if err := push.AddCollectors(*app, groupingMap, *pushURI, exporter,);
+	//	err != nil {
+	//	fmt.Println("Could not push metrics to Pushgateway:", err)
+	//  }
+	//  time.Sleep(5*time.Second)
+	//}
+	log.Infof("Starting Server: %s", *listeningAddress)
+	http.Handle(*metricsEndpoint, promhttp.Handler())
+	log.Fatal(http.ListenAndServe(*listeningAddress, nil))
 }
