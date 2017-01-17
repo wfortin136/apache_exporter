@@ -9,10 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-        //"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	//"github.com/prometheus/client_golang/prometheus/push"
         "github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/log"
 )
@@ -26,9 +24,6 @@ var (
 	metricsEndpoint  = flag.String("telemetry.endpoint", "/metrics", "Path under which to expose metrics.")
 	scrapeURI        = flag.String("scrape_uri", "http://localhost/server-status/?auto", "URI to apache stub status page.")
 	insecure         = flag.Bool("insecure", false, "Ignore server certificate if using https.")
-        //pushURI          = flag.String("pushgateway_uri", "pushgateway:9091", "Prometheus URI webscraper page")
-        //node             = flag.String("node", "", "Kubernetes node name label when dumped into Prometheus")
-        //pod              = flag.String("pod", "", "Kubernetes pod name label when dumped into Prometheus")
         app              = flag.String("app", "", "App name label when dumped into Prometheus")
         branch           = flag.String("branch", "", "Branch name label when dumped into Prometheus")
 )
@@ -37,8 +32,6 @@ type Exporter struct {
 	URI    string
 	mutex  sync.Mutex
 	client *http.Client
-        APP    string
-        BRANCH string
 
 	up             *prometheus.Desc
 	scrapeFailures prometheus.Counter
@@ -50,16 +43,14 @@ type Exporter struct {
 	connections    *prometheus.GaugeVec
 }
 
-func NewExporter(uri string, app string, branch string) *Exporter {
+func NewExporter(uri string) *Exporter {
 	return &Exporter{
-		URI:    uri,
-                APP:    app,
-                BRANCH: branch,
+                URI: uri,
 		up: prometheus.NewDesc(
                         prometheus.BuildFQName(namespace, "", "up"),
                         "Could the apache server be reached",
 			nil,
-                        map[string]string{"app": app, "branch": branch}),
+                        nil),
                 scrapeFailures: prometheus.NewCounter(prometheus.CounterOpts{
                         Namespace: namespace,
                         Name:      "exporter_scrape_failures_total",
@@ -69,17 +60,17 @@ func NewExporter(uri string, app string, branch string) *Exporter {
                         prometheus.BuildFQName(namespace, "", "accesses_total"),
                         "Current total apache accesses",
 			nil,
-                        map[string]string{"app": app, "branch": branch}),
+                        nil),
                 kBytesTotal: prometheus.NewDesc(
                         prometheus.BuildFQName(namespace, "", "sent_kilobytes_total"),
                         "Current total kbytes sent",
 			nil,
-                        map[string]string{"app": app, "branch": branch}),
+                        nil),
                 uptime: prometheus.NewDesc(
                         prometheus.BuildFQName(namespace, "", "uptime_seconds_total"),
                         "Current uptime in seconds",
 			nil,
-                        map[string]string{"app": app, "branch": branch}),
+                        nil),
 		workers: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "workers",
@@ -165,6 +156,7 @@ func (e *Exporter) updateScoreboard(scoreboard string) {
 			e.scoreboard.WithLabelValues("open_slot").Inc()
 		}
 	}
+        e.scoreboard.WithLabelValues("total_processes").Add(float64(len(scoreboard)))
 }
 
 func (e *Exporter) collect(ch chan<- prometheus.Metric) error {
@@ -289,15 +281,9 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 func main() {
 	flag.Parse()
 
-	exporter := NewExporter(*scrapeURI, *app, *branch)
+	exporter := NewExporter(*scrapeURI)
 	prometheus.MustRegister(exporter)
-	//for{
-	//	if err := push.AddCollectors(*app, groupingMap, *pushURI, exporter,);
-	//	err != nil {
-	//	fmt.Println("Could not push metrics to Pushgateway:", err)
-	//  }
-	//  time.Sleep(5*time.Second)
-	//}
+
 	log.Infof("Starting Server: %s", *listeningAddress)
 	http.Handle(*metricsEndpoint, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(*listeningAddress, nil))
